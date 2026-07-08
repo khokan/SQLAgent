@@ -20,7 +20,7 @@ Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .MinimumLevel.Is(isDevelopment ? Serilog.Events.LogEventLevel.Information : Serilog.Events.LogEventLevel.Warning)
     .WriteTo.Console()
-    .WriteTo.File("logs/app-.txt", rollingInterval: RollingInterval.Day)
+    .WriteTo.File("logs/SQLAgent-.txt", rollingInterval: RollingInterval.Hour)
     .Enrich.FromLogContext()
     .CreateLogger();
 

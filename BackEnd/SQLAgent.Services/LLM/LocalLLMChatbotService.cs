@@ -254,8 +254,40 @@ public class LocalLLMChatbotService : IChatbotService
             if (queryResult == null)
                 return Task.FromResult("No results found for your query.");
 
-            // Format the response based on query type
-            var response = $"Query executed successfully.\n\nResults:\n{queryResult}";
+            var response = "Query executed successfully.\n\nResults:\n";
+
+            // Format the response based on result type
+            if (queryResult is List<Dictionary<string, object>> results)
+            {
+                if (results.Count == 0)
+                {
+                    response += "No rows returned.";
+                }
+                else
+                {
+                    // Get column headers from first row
+                    var headers = results[0].Keys.ToList();
+                    
+                    // Format as a table
+                    response += string.Join(" | ", headers) + "\n";
+                    response += string.Join("-|-", headers.Select(h => new string('-', h.Length))) + "\n";
+                    
+                    // Format each row
+                    foreach (var row in results)
+                    {
+                        var values = headers.Select(h => row.ContainsKey(h) ? (row[h]?.ToString() ?? "NULL") : "NULL");
+                        response += string.Join(" | ", values) + "\n";
+                    }
+                }
+            }
+            else if (queryResult is System.Collections.IEnumerable enumerable && !(queryResult is string))
+            {
+                response += string.Join("\n", enumerable.Cast<object>().Select(x => x?.ToString() ?? "NULL"));
+            }
+            else
+            {
+                response += queryResult.ToString();
+            }
 
             return Task.FromResult(response);
         }
