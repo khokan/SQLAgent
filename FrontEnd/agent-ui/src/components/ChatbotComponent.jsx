@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
+
+const API_BASE_URL = 'https://localhost:5001/api';
 
 const ChatbotComponent = () => {
   const [query, setQuery] = useState('');
@@ -13,27 +15,28 @@ const ChatbotComponent = () => {
   const [password, setPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const initialLoadRef = useRef(false);
 
-  const API_BASE_URL = 'https://localhost:5001/api';
-
+  // Load companies when token changes
   useEffect(() => {
+    if (!token) {
+      return;
+    }
+
     const loadCompanies = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/chatbot/companies`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setCompanies(response.data.data);
+        if (response.data && response.data.data) {
+          setCompanies(response.data.data);
+        }
       } catch (error) {
         console.error('Error loading companies:', error);
       }
     };
 
-    if (token && !initialLoadRef.current) {
-      initialLoadRef.current = true;
-      loadCompanies();
-    }
-  }, [token, API_BASE_URL]);
+    loadCompanies();
+  }, [token]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -53,7 +56,6 @@ const ChatbotComponent = () => {
         setIsLoggedIn(true);
         setUsername('');
         setPassword('');
-        initialLoadRef.current = false; // Reset to load companies
       } else {
         setLoginError(response.data.message || 'Login failed');
       }
@@ -73,41 +75,74 @@ const ChatbotComponent = () => {
     setCompanies([]);
     setUsername('');
     setPassword('');
-    initialLoadRef.current = false;
   };
 
   const handleSendQuery = async (e) => {
     e.preventDefault();
-    if (!query.trim()) return;
+    
+    if (!query.trim()) {
+      console.log('Query is empty');
+      return;
+    }
+
+    if (!token) {
+      console.log('No token available');
+      return;
+    }
 
     setLoading(true);
+    
     try {
+      const queryText = query;
+      const companyId = selectedCompany;
+      
+      console.log('Sending query:', { queryText, companyId, token: token.substring(0, 20) + '...' });
+      
       const response = await axios.post(
         `${API_BASE_URL}/chatbot/query`,
         {
-          query: query,
-          companyId: selectedCompany
+          query: queryText,
+          companyId: companyId || null
         },
         {
           headers: { Authorization: `Bearer ${token}` }
         }
       );
 
-      const chatResponse = response.data.data;
-      setResponses(prev => [...prev, {
-        userQuery: chatResponse.query,
-        response: chatResponse.response,
-        generatedSql: chatResponse.generatedSql,
-        data: chatResponse.data,
-        isSuccessful: chatResponse.isSuccessful
-      }]);
+      console.log('Query response:', response.data);
 
-      setQuery('');
+      if (response.data?.data) {
+        const chatResponse = response.data.data;
+        const newResponse = {
+          userQuery: chatResponse.query || queryText,
+          response: chatResponse.response || 'No response received',
+          generatedSql: chatResponse.generatedSql,
+          data: chatResponse.data,
+          isSuccessful: chatResponse.isSuccessful !== false
+        };
+        
+        console.log('Adding response:', newResponse);
+        setResponses(prev => [...prev, newResponse]);
+        // setQuery('');
+      } else {
+        console.log('Invalid response format:', response.data);
+        setResponses(prev => [...prev, {
+          userQuery: queryText,
+          response: 'Unexpected response format',
+          isSuccessful: false
+        }]);
+      }
     } catch (error) {
-      console.error('Error sending query:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
+      const errorMessage = error.response?.data?.message || error.message || 'Error processing query';
       setResponses(prev => [...prev, {
         userQuery: query,
-        response: 'Error processing query',
+        response: `Error: ${errorMessage}`,
         isSuccessful: false
       }]);
     } finally {
