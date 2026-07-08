@@ -18,6 +18,20 @@ public class ChatResponse
     public DateTime CreatedAt { get; set; }
 }
 
+public class SummarizeRequest
+{
+    public string UserQuery { get; set; } = string.Empty;
+    public object? Data { get; set; }
+    public string DataType { get; set; } = "table"; // kpi, chart, table, empty
+}
+
+public class SummarizeResponse
+{
+    public string Summary { get; set; } = string.Empty;
+    public string DataType { get; set; } = string.Empty;
+    public int RecordCount { get; set; }
+}
+
 public class TurnoverDto
 {
     public int Id { get; set; }

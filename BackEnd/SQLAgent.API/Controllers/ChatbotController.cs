@@ -183,6 +183,88 @@ public class ChatbotController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Generate business summary and insights from query results
+    /// </summary>
+    [HttpPost("summarize")]
+    [ProducesResponseType(typeof(SummarizeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Summarize([FromBody] SummarizeRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.UserQuery))
+                return BadRequest(new { message = "User query cannot be empty" });
+
+            if (request.Data == null)
+                return BadRequest(new { message = "Data cannot be empty" });
+
+            var summaryPrompt = BuildSummaryPrompt(request.UserQuery, request.Data, request.DataType);
+            
+            // Use the chatbot service to generate a summary
+            var summary = await _chatbotService.FormatResponseAsync(summaryPrompt, request.Data);
+
+            _logger.Information("Summary generated for query: {Query}", request.UserQuery);
+
+            return Ok(new ApiResponse<SummarizeResponse>
+            {
+                Success = true,
+                Message = "Summary generated successfully",
+                Data = new SummarizeResponse 
+                { 
+                    Summary = summary,
+                    DataType = request.DataType,
+                    RecordCount = GetRecordCount(request.Data)
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error generating summary");
+            return StatusCode(500, new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Error generating summary",
+                Errors = new Dictionary<string, string> { { "error", ex.Message } }
+            });
+        }
+    }
+
+    private string BuildSummaryPrompt(string userQuery, object data, string dataType)
+    {
+        var dataJson = System.Text.Json.JsonSerializer.Serialize(data);
+        
+        var prompt = $@"You are a business analyst. Based on the following query and data results, provide a concise business-friendly summary with key insights and actionable recommendations.
+
+User Query: {userQuery}
+Data Type: {dataType}
+Data Results: {dataJson}
+
+Please provide:
+1. Key Finding: The main insight from this data
+2. Business Impact: What this means for the business
+3. Recommendations: What should be done next
+4. Alert (if applicable): Any concerning trends or anomalies
+
+Format your response in a clear, professional manner suitable for business stakeholders.";
+
+        return prompt;
+    }
+
+    private int GetRecordCount(object data)
+    {
+        if (data is System.Collections.IEnumerable enumerable)
+        {
+            int count = 0;
+            foreach (var item in enumerable)
+            {
+                count++;
+            }
+            return count;
+        }
+        return 1;
+    }
+
     private async Task<object?> ExecuteQueryAsync(string sql, int? companyId = null)
     {
         try
